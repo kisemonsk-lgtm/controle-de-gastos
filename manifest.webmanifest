@@ -1,0 +1,15 @@
+{
+  "name": "Gastos — Controle Mensal",
+  "short_name": "Gastos",
+  "description": "Controle de gastos mensal com gráficos e salvamento na nuvem",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icone.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
