@@ -585,6 +585,72 @@ html[data-tema="claro"] #graficoPizza path { stroke: #fff; }
 .rosca-legenda i { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
 .rosca-legenda b { margin-left: auto; font-variant-numeric: tabular-nums; }
 
+/* ---------------- faturas do cartão ---------------- */
+.card-faturas { padding-bottom: 14px; }
+.card-faturas[hidden] { display: none; }
+.faturas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.fatura {
+  padding: 14px 15px;
+  border-radius: 14px;
+  border: 1px solid var(--linha);
+  background: linear-gradient(150deg, rgba(96, 165, 250, .16), rgba(167, 139, 250, .10) 65%, transparent), var(--card);
+}
+.fatura-rot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--suave);
+  font-weight: 650;
+}
+.fatura-rot i {
+  width: 22px; height: 15px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, var(--azul), var(--roxo));
+  display: block;
+  flex: 0 0 auto;
+}
+.fatura-val {
+  display: block;
+  margin-top: 8px;
+  font-size: clamp(18px, 2.2vw, 24px);
+  font-weight: 780;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+}
+.fatura-pe {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--fraco);
+}
+.fatura-barra {
+  height: 5px;
+  border-radius: 99px;
+  background: var(--linha);
+  margin-top: 10px;
+  overflow: hidden;
+}
+.fatura-barra span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--azul), var(--roxo));
+  transition: width 600ms cubic-bezier(.22, 1, .36, 1);
+}
+.fatura-total {
+  border-color: transparent;
+  background:
+    linear-gradient(150deg, rgba(167, 139, 250, .22), rgba(96, 165, 250, .12) 60%, transparent),
+    var(--card-forte);
+}
+
 /* ---------------- tabela ---------------- */
 .tabela-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
 .tabela-acoes input, .tabela-acoes select {
@@ -662,6 +728,7 @@ td.desc small { display: block; font-weight: 400; font-size: 11px; color: var(--
 .pilula.obr { color: var(--verde); background: color-mix(in srgb, var(--verde) 14%, transparent); }
 .pilula.nao { color: var(--vermelho); background: color-mix(in srgb, var(--vermelho) 14%, transparent); }
 .pilula.pag { color: var(--suave); font-weight: 500; }
+.pilula.pag.cartao { color: var(--azul); background: color-mix(in srgb, var(--azul) 14%, transparent); }
 
 .btn-lixo {
   width: 30px; height: 30px;
