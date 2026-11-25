@@ -104,15 +104,18 @@
       return Promise.resolve(null);
     }
 
-    // caminho que o Firebase libera: mesmo documento do ponto, campo "gastos"
+    // o documento do ponto responde: é por ele que lemos e gravamos
     return baixarREST().then((dadosREST) => {
+      modoREST = true;
       if (dadosREST) {
-        modoREST = true;
         status("nuvem ligada", "ok");
         aoReceber(dadosREST);
-        return dadosREST;
+      } else {
+        // ainda não existe nada de gastos na nuvem: liga e começa o envio
+        status("nuvem ligada", "ok");
+        enviarREST({ lancamentos: [], rendas: {}, rendasAt: {}, atualizadoEm: Date.now() });
       }
-      return tentarSDK();
+      return dadosREST;
     });
 
     function tentarSDK() {
@@ -223,6 +226,7 @@
 
   function enviarREST(estado) {
     if (!CHAVE_REST) return Promise.resolve(false);
+    status("enviando…", "salvando");
     const copia = JSON.parse(JSON.stringify(estado));
     copia.atualizadoEm = Date.now();
     const corpo = { fields: {} };
