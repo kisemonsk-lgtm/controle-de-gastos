@@ -84,6 +84,16 @@
     return isNaN(n) ? 0 : n;
   }
 
+  function ehCartao(l) {
+    const p = String(l.pagamento || "").toLowerCase();
+    return p === "cartão de crédito" || p === "cartao de credito" || p === "crédito" || p === "credito";
+  }
+
+  function nomeCartao(l) {
+    const n = (l.cartao || "").trim();
+    return n || "Cartão";
+  }
+
   function catInfo(nome) {
     return CATS.find((c) => c.nome === nome) || { nome: nome || "Outros", grupo: "Fora", obrig: false, cor: "#94a3b8" };
   }
@@ -187,6 +197,8 @@
         categoria: l.categoria || "Outros",
         valor: Number(l.valor) || 0,
         pagamento: l.pagamento || "",
+        cartao: l.cartao || "",
+        parcelas: Number(l.parcelas) || 1,
         obs: l.obs || "",
         obrig: l.obrig ? 1 : 0,
         excluido: !!l.excluido,
@@ -511,6 +523,59 @@
     });
   }
 
+  /* ---------------- faturas do cartão ---------------- */
+  function desenharFaturas() {
+    const caixa = $("#listaFaturas");
+    const card = $("#cardFaturas");
+    caixa.innerHTML = "";
+
+    const doCartao = estado.lancamentos.filter((l) => !l.excluido && l.mes === mesAtual && ehCartao(l));
+    if (!doCartao.length) { card.hidden = true; return; }
+    card.hidden = false;
+
+    const porCartao = new Map();
+    doCartao.forEach((l) => {
+      const k = nomeCartao(l);
+      porCartao.set(k, (porCartao.get(k) || 0) + (Number(l.valor) || 0));
+    });
+    const total = doCartao.reduce((s, l) => s + l.valor, 0);
+    const maior = Math.max.apply(null, Array.from(porCartao.values()).concat([1]));
+
+    const proximo = somaMes(mesAtual, 1);
+    const proximoTotal = estado.lancamentos
+      .filter((l) => !l.excluido && l.mes === proximo && ehCartao(l))
+      .reduce((s, l) => s + l.valor, 0);
+
+    Array.from(porCartao.entries()).sort((a, b) => b[1] - a[1]).forEach(([nome, valor]) => {
+      const d = el("div", "fatura");
+      const rot = el("div", "fatura-rot");
+      rot.append(el("i"), el("span", "", nome));
+      d.append(rot, el("strong", "fatura-val", reais(valor)));
+
+      const compras = doCartao.filter((l) => nomeCartao(l) === nome);
+      d.append(el("span", "fatura-pe", compras.length + (compras.length === 1 ? " compra" : " compras") +
+        (proximoTotal ? " · próxima fatura: " + reais(proximoTotal) : "")));
+
+      const barra = el("div", "fatura-barra");
+      const dentro = el("span");
+      dentro.style.width = "0%";
+      barra.appendChild(dentro);
+      d.appendChild(barra);
+      caixa.appendChild(d);
+      setTimeout(() => { dentro.style.width = Math.round((valor / maior) * 100) + "%"; }, 60);
+    });
+
+    const t = el("div", "fatura fatura-total");
+    const rot = el("div", "fatura-rot");
+    rot.append(el("i"), el("span", "", "Total no cartão"));
+    t.append(rot, el("strong", "fatura-val", reais(total)));
+    t.append(el("span", "fatura-pe", "em " + nomeMesLongo(mesAtual) +
+      (proximoTotal ? " · " + nomeMes(proximo) + ": " + reais(proximoTotal) : "")));
+    caixa.appendChild(t);
+
+    $("#subFaturas").textContent = porCartao.size + (porCartao.size === 1 ? " cartão" : " cartões") + " · " + nomeMesLongo(mesAtual);
+  }
+
   /* ---------------- tela: tabela ---------------- */
   function desenharTabela() {
     const corpo = $("#corpoTabela");
@@ -553,7 +618,13 @@
       tdVal.style.color = l.obrig ? "var(--verde)" : "var(--texto)";
 
       const tdPag = el("td", "col-pag");
-      tdPag.appendChild(el("span", "pilula pag", l.pagamento || "—"));
+      const pilulaPag = el("span", "pilula pag", ehCartao(l) ? nomeCartao(l) : (l.pagamento || "—"));
+      if (ehCartao(l)) {
+        pilulaPag.classList.add("cartao");
+        pilulaPag.title = "Cartão de crédito" + (l.parcelas > 1 ? " · " + l.parcelas + "x de " + reais(l.valor / l.parcelas) : "");
+        if (l.parcelas > 1) pilulaPag.textContent = nomeCartao(l) + " " + l.parcelas + "x";
+      }
+      tdPag.appendChild(pilulaPag);
 
       const tdAcao = el("td", "col-acao");
       const lixo = el("button", "btn-lixo");
@@ -587,6 +658,7 @@
     cancelarAnimacoes();
     desenharMes();
     desenharKpis();
+    desenharFaturas();
     desenharPizza();
     desenharRosca();
     desenharBarras();
@@ -635,9 +707,33 @@
       $("#campoObrig").value = "1";
     }
 
+    alternarCamposCartao();
+    if (editando && ehCartao(editando)) {
+      $("#campoCartao").value = editando.cartao || "";
+      $("#campoParcelas").value = String(editando.parcelas || 1);
+    }
+
     $("#modalFundo").hidden = false;
     pausaNuvem = true;
     setTimeout(() => $("#campoDescricao").focus(), 60);
+  }
+
+  function alternarCamposCartao() {
+    const cartao = ehCartao({ pagamento: $("#campoPagamento").value });
+    $("#cartaoCampos").hidden = !cartao;
+    atualizarDicaParcela();
+  }
+
+  function atualizarDicaParcela() {
+    const n = Number($("#campoParcelas").value) || 1;
+    const v = numeroTexto($("#campoValor").value);
+    const dica = $("#dicaParcela");
+    if (n > 1 && v > 0) {
+      dica.textContent = "Compra de " + reais(v) + " em " + n + "x de " + reais(v / n) +
+        " — cada parcela entra no mês dela.";
+    } else {
+      dica.textContent = "No cartão o gasto conta no mês da compra; se parcelar, cada parcela aparece no seu mês.";
+    }
   }
 
   function fecharModal() {
@@ -650,7 +746,20 @@
   function excluir(id) {
     const l = estado.lancamentos.find((x) => x.id === id);
     if (!l) return;
-    if (!confirm('Excluir "' + (l.descricao || l.categoria) + '" de ' + reais(l.valor) + "?")) return;
+    const grupo = l.grupoParcelas
+      ? estado.lancamentos.filter((x) => !x.excluido && x.grupoParcelas === l.grupoParcelas)
+      : [];
+    if (grupo.length > 1) {
+      const todas = confirm('Excluir todas as ' + grupo.length + " parcelas de\n\"" +
+        (l.descricao || l.categoria) + '"?\n\nOK = todas as parcelas · Cancelar = só esta');
+      if (todas) {
+        grupo.forEach((x) => { x.excluido = true; x.at = Date.now(); });
+        salvar(); desenhar();
+        aviso("Parcelas excluídas", "ok");
+        return;
+      }
+      if (!confirm('Excluir só esta parcela de ' + reais(l.valor) + "?")) return;
+    } else if (!confirm('Excluir "' + (l.descricao || l.categoria) + '" de ' + reais(l.valor) + "?")) return;
     l.excluido = true;
     l.at = Date.now();
     salvar();
@@ -680,6 +789,8 @@
       editando.mes = mesDe(data);
       editando.categoria = categoria;
       editando.pagamento = $("#campoPagamento").value;
+      editando.cartao = ehCartao(editando) ? $("#campoCartao").value.trim() : "";
+      editando.parcelas = ehCartao(editando) ? (Number($("#campoParcelas").value) || 1) : 1;
       editando.obrig = $("#campoObrig").value === "1" ? 1 : 0;
       editando.obs = $("#campoObs").value.trim();
       editando.at = agora;
@@ -694,17 +805,59 @@
         categoria,
         valor,
         pagamento: $("#campoPagamento").value,
+        cartao: "",
+        parcelas: 1,
         obrig: $("#campoObrig").value === "1" ? 1 : 0,
         obs: $("#campoObs").value.trim(),
         excluido: false,
         at: agora
       });
+      const novo = estado.lancamentos[estado.lancamentos.length - 1];
+
+      if (ehCartao(novo)) {
+        novo.cartao = $("#campoCartao").value.trim();
+        const n = Number($("#campoParcelas").value) || 1;
+        novo.parcelas = n;
+        if (n > 1) {
+          // divide em parcelas, uma por mês, a partir do mês da compra
+          const totalParcelas = n;
+          const valorParcela = Math.round((valor / totalParcelas) * 100) / 100;
+          novo.valor = Math.round((valor - valorParcela * (totalParcelas - 1)) * 100) / 100;
+          novo.descricao = descricao;
+          novo.grupoParcelas = novo.id;
+          const mesBase = mesDe(data);
+          for (let i = 2; i <= totalParcelas; i++) {
+            const m = somaMes(mesBase, i - 1);
+            const dia = String(Math.min(Number(data.slice(8, 10)) || 1, 28)).padStart(2, "0");
+            estado.lancamentos.push({
+              id: idNovo(),
+              data: m + "-" + dia,
+              mes: m,
+              descricao: descricao + " (" + i + "/" + totalParcelas + ")",
+              categoria,
+              valor: valorParcela,
+              pagamento: novo.pagamento,
+              cartao: novo.cartao,
+              parcelas: totalParcelas,
+              grupoParcelas: novo.grupoParcelas,
+              obrig: novo.obrig,
+              obs: novo.obs,
+              excluido: false,
+              at: agora + i
+            });
+          }
+          aviso("Compra em " + totalParcelas + "x de " + reais(valorParcela) + " lançada", "ok");
+        } else {
+          aviso("Gasto lançado: " + reais(valor), "ok");
+        }
+      } else {
+        aviso("Gasto lançado: " + reais(valor), "ok");
+      }
+
       mesAtual = mesDe(data);
-      aviso("Gasto lançado: " + reais(valor), "ok");
     }
     salvar();
     fecharModal();
-    aviso("Gasto salvo", "ok");
   }
 
   /* ---------------- modal de renda ---------------- */
@@ -737,14 +890,14 @@
   function exportar() {
     const lista = doMes(mesAtual).slice().sort((a, b) => (a.data || "").localeCompare(b.data || ""));
     if (!lista.length) { aviso("Nada para exportar neste mês", "erro"); return; }
-    const linhas = [["Data", "Descrição", "Categoria", "Grupo", "Obrigatório", "Valor", "Pagamento", "Observações"]];
+    const linhas = [["Data", "Descrição", "Categoria", "Grupo", "Obrigatório", "Valor", "Pagamento", "Cartão", "Parcelas", "Observações"]];
     lista.forEach((l) => {
       const c = catInfo(l.categoria);
       linhas.push([
         dataBR(l.data), l.descricao, l.categoria, c.grupo,
         l.obrig ? "Sim" : "Não",
         (Number(l.valor) || 0).toFixed(2).replace(".", ","),
-        l.pagamento || "", l.obs || ""
+        l.pagamento || "", ehCartao(l) ? nomeCartao(l) : "", ehCartao(l) && l.parcelas > 1 ? l.parcelas + "x" : "", l.obs || ""
       ]);
     });
     linhas.push([]);
@@ -834,6 +987,10 @@
       const c = catInfo(ev.target.value);
       $("#campoObrig").value = c.obrig ? "1" : "0";
     });
+
+    $("#campoPagamento").addEventListener("change", alternarCamposCartao);
+    $("#campoParcelas").addEventListener("change", atualizarDicaParcela);
+    $("#campoValor").addEventListener("input", atualizarDicaParcela);
 
     $("#btnTema").addEventListener("click", () => {
       const atual = document.documentElement.dataset.tema === "claro" ? "escuro" : "claro";
