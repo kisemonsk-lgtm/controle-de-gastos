@@ -1,5 +1,5 @@
 /* Cache do app para funcionar mesmo sem internet */
-const CACHE = "gastos-v1";
+const CACHE = "gastos-v2";
 const ARQUIVOS = ["./", "./index.html", "./estilo.css", "./app.js", "./categorias.js",
   "./nuvem.js", "./firebase-config.js", "./manifest.webmanifest", "./icone.svg"];
 
@@ -15,11 +15,15 @@ self.addEventListener("activate", (ev) => {
 
 self.addEventListener("fetch", (ev) => {
   if (ev.request.method !== "GET") return;
-  ev.respondWith(caches.match(ev.request).then((resp) => resp || fetch(ev.request)
-    .then((r) => {
-      const copia = r.clone();
-      caches.open(CACHE).then((c) => c.put(ev.request, copia)).catch(() => {});
-      return r;
-    })
-    .catch(() => caches.match("./index.html"))));
+  const url = new URL(ev.request.url);
+  if (url.origin !== location.origin) return;   // Firebase e gstatic passam direto
+  ev.respondWith(
+    fetch(ev.request)
+      .then((r) => {
+        const copia = r.clone();
+        caches.open(CACHE).then((c) => c.put(ev.request, copia)).catch(() => {});
+        return r;
+      })
+      .catch(() => caches.match(ev.request).then((resp) => resp || caches.match("./index.html")))
+  );
 });
