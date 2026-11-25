@@ -92,6 +92,15 @@
     </article>
   </section>
 
+  <!-- ============ FATURAS DO CARTÃO ============ -->
+  <section class="card card-faturas" id="cardFaturas">
+    <header class="card-topo">
+      <h2>Cartão de crédito</h2>
+      <span class="card-sub" id="subFaturas">faturas deste mês</span>
+    </header>
+    <div class="faturas" id="listaFaturas"></div>
+  </section>
+
   <!-- ============ GRÁFICOS ============ -->
   <section class="grade-graficos">
     <article class="card card-pizza">
@@ -225,6 +234,7 @@
             <option>Dinheiro</option>
             <option>Débito</option>
             <option>Crédito</option>
+            <option>Cartão de crédito</option>
             <option>Boleto</option>
             <option>Transferência</option>
           </select>
@@ -236,6 +246,33 @@
             <option value="0">Não obrigatório</option>
           </select>
         </label>
+      </div>
+
+      <div class="cartao-campos" id="cartaoCampos" hidden>
+        <div class="linha-2">
+          <label class="campo">
+            <span>Cartão</span>
+            <input type="text" id="campoCartao" placeholder="Ex.: Nubank, Inter, C6" maxlength="30">
+          </label>
+          <label class="campo">
+            <span>Parcelas</span>
+            <select id="campoParcelas">
+              <option value="1">1x (à vista)</option>
+              <option value="2">2x</option>
+              <option value="3">3x</option>
+              <option value="4">4x</option>
+              <option value="5">5x</option>
+              <option value="6">6x</option>
+              <option value="7">7x</option>
+              <option value="8">8x</option>
+              <option value="9">9x</option>
+              <option value="10">10x</option>
+              <option value="11">11x</option>
+              <option value="12">12x</option>
+            </select>
+          </label>
+        </div>
+        <p class="dica" id="dicaParcela">No cartão o gasto conta no mês da compra; se parcelar, cada parcela aparece no seu mês.</p>
       </div>
 
       <label class="campo">
