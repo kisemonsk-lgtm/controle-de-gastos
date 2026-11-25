@@ -18,6 +18,12 @@ window.FIREBASE_CONFIG = {
   messagingSenderId: "919912137592"
 };
 
-/* onde os gastos são guardados no Firestore */
+/* Onde os gastos são guardados no Firestore.
+   O app tenta primeiro uma coleção própria ("gastos-casa").
+   Se as regras do Firestore não liberarem essa coleção, ele usa
+   o mesmo documento do app de ponto (ponto-cas/principal) e
+   grava tudo dentro do campo "gastos" — os dois sistemas ficam
+   separados e o que é do ponto não é tocado. */
 window.FIRESTORE_COLECAO = "gastos-casa";
 window.FIRESTORE_DOC = "principal";
+window.FIRESTORE_CAMPO = "gastos";
