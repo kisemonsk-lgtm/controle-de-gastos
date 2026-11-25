@@ -256,7 +256,6 @@
     const ehAtual = hoje.getFullYear() === ano && hoje.getMonth() + 1 === mes;
     const diasContados = ehAtual ? Math.max(1, hoje.getDate()) : diasNoMes;
 
-    contarValor($("#kpiTotal"), total);
     $("#kpiTotal").textContent = reais(total);
 
     $("#kpiTotalPe").textContent = lista.length + (lista.length === 1 ? " lançamento" : " lançamentos") +
