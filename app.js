@@ -870,6 +870,7 @@
 
     if (window.GastosNuvem) {
       window.GastosNuvem.aoMudarStatus(statusNuvem);
+      if (!window.GastosNuvem.configurada()) statusNuvem("só neste navegador", "off");
       window.GastosNuvem.iniciar(receberDaNuvem)
         .then((nuvem) => {
           if (!nuvem) return;
@@ -883,6 +884,16 @@
     } else {
       statusNuvem("só neste navegador", "off");
     }
+
+    // se em 6 segundos a nuvem não disse nada, avisa
+    setTimeout(() => {
+      const caixa = $("#nuvem");
+      if (caixa && (caixa.dataset.estado === "salvando" || caixa.dataset.estado === "off")) {
+        statusNuvem(window.GastosNuvem && window.GastosNuvem.configurada()
+          ? "nuvem sem resposta" : "só neste navegador",
+          window.GastosNuvem && window.GastosNuvem.configurada() ? "erro" : "off");
+      }
+    }, 6000);
 
     // cache do app: funciona mesmo sem internet depois da primeira visita
     if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
