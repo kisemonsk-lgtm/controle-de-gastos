@@ -104,9 +104,20 @@
       return Promise.resolve(null);
     }
 
-    // 1) coleção própria; se as regras negarem, 2) campo dentro do documento do ponto
+    // caminho que o Firebase libera: mesmo documento do ponto, campo "gastos"
+    return baixarREST().then((dadosREST) => {
+      if (dadosREST) {
+        modoREST = true;
+        status("nuvem ligada", "ok");
+        aoReceber(dadosREST);
+        return dadosREST;
+      }
+      return tentarSDK();
+    });
+
+    function tentarSDK() {
     const proprio = db.collection(COLECAO).doc(DOC);
-    const noPonto = db.collection("ponto-cas").doc("principal");
+    const noPonto = db.collection(PONTO_COLECAO).doc(PONTO_DOC);
 
     return proprio.get({ source: "server" })
       .then((doc) => {
@@ -131,26 +142,29 @@
             return dados;
           });
         }));
+    }
 
-    function usar(referencia, leitor) {
-      ref = referencia;
-      ref.onSnapshot((doc) => {
-        if (!doc.exists) { status("nuvem ligada", "ok"); return; }
-        const dados = leitor(doc.data() || {});
-        if (!dados || !Array.isArray(dados.lancamentos)) { status("nuvem ligada", "ok"); return; }
-        status("nuvem ligada", "ok");
-        try { aoReceber(dados); } catch (e) { console.warn(e); }
-      }, (err) => {
-        console.warn("Falha ao ler da nuvem:", err);
-        const semPermissao = err && (err.code === "permission-denied" || /permission/i.test(String(err.message)));
-        status(semPermissao ? "nuvem bloqueada (permissão)" : "nuvem sem conexão", "erro");
-      });
+    function usar(referencia) {
+      ref = referencia;   // usado só para gravar (set com merge)
+      status("nuvem ligada", "ok");
     }
   }
 
   /* ---------- baixar ---------- */
   function baixar() {
-    if (modoREST) return baixarREST();
+    if (CHAVE_REST) {
+      return baixarREST().then((d) => {
+        if (d) { modoREST = true; return d; }
+        if (!ref) return null;
+        return ref.get({ source: "server" })
+          .then((doc) => {
+            if (!doc.exists) return null;
+            const dd = doc.data() || {};
+            return dd[CAMPO] || dd.dados || null;
+          })
+          .catch(() => null);
+      });
+    }
     if (!ref) return Promise.resolve(null);
     return ref.get({ source: "server" })
       .then((doc) => {
@@ -225,13 +239,16 @@
 
   /* ---------- salvar ---------- */
   function agendarSalvar(estado) {
-    if (!ref && !modoREST) return;
+    if (!ref && !modoREST && !CHAVE_REST) return;
     clearTimeout(timer);
     status("enviando…", "salvando");
     timer = setTimeout(() => {
       if (modoREST || !ref) {
         baixarREST().then((nuvem) => enviarREST(nuvem ? juntar(estado, nuvem) : estado))
-          .then((ok) => status(ok ? "salvo na nuvem" : "não salvou na nuvem", ok ? "ok" : "erro"));
+          .then((ok) => {
+            if (ok) { modoREST = true; status("salvo na nuvem", "ok"); }
+            else status("não salvou na nuvem", "erro");
+          });
         return;
       }
       ref.get()
