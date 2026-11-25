@@ -27,6 +27,7 @@
   let filtro = { texto: "", grupo: "" };
   let editando = null;   // lançamento em edição
   let pausaNuvem = false; // enquanto o usuário está digitando não aplica a nuvem
+  let relogioNuvem = null; // leitura periódica da nuvem
 
   function mesHoje() {
     const d = new Date();
@@ -236,12 +237,9 @@
 
   function contarValor(el, valor) {
     if (!el) return;
-    const de = Number(el.dataset.numero) || 0;
-    el.dataset.numero = String(valor);
-    if (SEM_MOVIMENTO || de === valor) { el.textContent = reais(valor); return; }
-    animar(650, (k) => { el.textContent = reais(de + (valor - de) * k); });
-    setTimeout(() => { el.textContent = reais(valor); }, 700);
+    el.textContent = reais(valor);
   }
+
 
   /* ---------------- tela: indicadores ---------------- */
   function desenharKpis() {
@@ -872,6 +870,12 @@
 
     if (window.GastosNuvem) {
       window.GastosNuvem.aoMudarStatus(statusNuvem);
+      clearInterval(relogioNuvem);
+      relogioNuvem = setInterval(() => {
+        if (pausaNuvem || document.hidden) return;
+        if (!window.GastosNuvem.ligada()) return;
+        window.GastosNuvem.baixar().then((dados) => { if (dados) receberDaNuvem(dados); }).catch(() => {});
+      }, 20000);
       if (!window.GastosNuvem.configurada()) statusNuvem("só neste navegador", "off");
       window.GastosNuvem.iniciar(receberDaNuvem)
         .then((nuvem) => {
