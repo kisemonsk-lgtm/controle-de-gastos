@@ -1,17 +1,18 @@
 /* =========================================================
    Nuvem (Firebase Firestore) — Sistema de Gastos
    ---------------------------------------------------------
-   - Com firebase-config.js preenchido, os gastos ficam no
-     Firestore e aparecem iguais em todos os aparelhos.
-   - Sem config, o app funciona só no navegador (localStorage).
-   - O estado tem a forma:
-       { lancamentos: [ {id, data, mes, descricao, categoria,
-                         valor, pagamento, obs, obrig, at} ],
-         rendas: { "2025-11": 3500, ... },
-         atualizadoEm: <ms> }
-   - Ao juntar duas versões, o que foi lançado em outro
-     aparelho nunca se perde: os lançamentos são unidos por id
-     (vence o carimbo "at" mais novo) e as rendas, mês a mês.
+   Usa o mesmo documento do app de ponto, mas dentro de um
+   campo próprio ("gastos"): as regras do Firestore liberam
+   esse documento, e os dois sistemas não se misturam.
+   Também tenta uma coleção própria (gastos-casa) se as
+   regras permitirem; vence a que responder.
+
+   Estado:
+     { lancamentos: [ {id, data, mes, descricao, categoria,
+                       valor, pagamento, obs, obrig, at} ],
+       rendas: { "2025-11": 3500 },
+       rendasAt: { "2025-11": <ms> },
+       atualizadoEm: <ms> }
    ========================================================= */
 (function () {
   "use strict";
@@ -19,9 +20,11 @@
   const cfg = window.FIREBASE_CONFIG || {};
   const COLECAO = window.FIRESTORE_COLECAO || "gastos-casa";
   const DOC = window.FIRESTORE_DOC || "principal";
+  const CAMPO = window.FIRESTORE_CAMPO || "gastos";
   const configurada = !!(cfg && cfg.apiKey && cfg.projectId && String(cfg.apiKey).indexOf("COLE") < 0);
 
   let db = null;
+  let ref = null;          // referência que está funcionando
   let timer = null;
   let avisarTela = () => {};
 
@@ -32,7 +35,6 @@
 
     const base = (Number(b.atualizadoEm) || 0) > (Number(a.atualizadoEm) || 0) ? b : a;
 
-    // lançamentos: união por id, vence o mais novo (at); excluídos vencem
     const porId = {};
     (a.lancamentos || []).concat(b.lancamentos || []).forEach((l) => {
       if (!l || !l.id) return;
@@ -42,7 +44,6 @@
       porId[l.id] = tb >= ta ? l : antigo;
     });
 
-    // rendas: o valor mais novo por mês (guarda carimbo em rendasAt)
     const rendas = Object.assign({}, a.rendas || {}, b.rendas || {});
     const rendasAt = Object.assign({}, a.rendasAt || {}, b.rendasAt || {});
     const meses = new Set(Object.keys(a.rendas || {}).concat(Object.keys(b.rendas || {})));
@@ -92,47 +93,70 @@
       if (!firebase.apps.length) firebase.initializeApp(cfg);
       db = firebase.firestore();
       db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
-      status("nuvem ligada", "ok");
+      status("conectando…", "salvando");
     } catch (e) {
       console.warn("Firebase não iniciou:", e);
       status("nuvem com erro", "erro");
       return Promise.resolve(null);
     }
 
-    // escuta mudanças de outro aparelho
-    db.collection(COLECAO).doc(DOC).onSnapshot((doc) => {
-      if (!doc.exists) return;
-      const d = doc.data() || {};
-      const dados = d.dados;
-      if (!dados || !Array.isArray(dados.lancamentos)) return;
-      try { aoReceber(dados); } catch (e) { console.warn(e); }
-    }, (err) => {
-      console.warn("Falha ao ler da nuvem:", err);
-      status("nuvem sem conexão", "erro");
-    });
+    // 1) coleção própria; se as regras negarem, 2) campo dentro do documento do ponto
+    const proprio = db.collection(COLECAO).doc(DOC);
+    const noPonto = db.collection("ponto-cas").doc("principal");
 
-    return baixar();
+    return proprio.get({ source: "server" })
+      .then((doc) => {
+        usar(proprio, (d) => (d && d.dados) || null);
+        return (doc.exists ? (doc.data() || {}).dados : null);
+      })
+      .catch(() => noPonto.get({ source: "server" })
+        .then((doc) => {
+          usar(noPonto, (d) => (d && d[CAMPO]) || null);
+          return doc.exists ? ((doc.data() || {})[CAMPO] || null) : null;
+        })
+        .catch((err) => {
+          console.warn("Sem permissão na nuvem:", err);
+          status("nuvem sem permissão", "erro");
+          return null;
+        }));
+
+    function usar(referencia, leitor) {
+      ref = referencia;
+      ref.onSnapshot((doc) => {
+        if (!doc.exists) { status("nuvem ligada", "ok"); return; }
+        const dados = leitor(doc.data() || {});
+        if (!dados || !Array.isArray(dados.lancamentos)) { status("nuvem ligada", "ok"); return; }
+        status("nuvem ligada", "ok");
+        try { aoReceber(dados); } catch (e) { console.warn(e); }
+      }, (err) => {
+        console.warn("Falha ao ler da nuvem:", err);
+        status("nuvem sem conexão", "erro");
+      });
+    }
   }
 
-  /* ---------- baixar (ao abrir) ---------- */
+  /* ---------- baixar ---------- */
   function baixar() {
-    if (!db) return Promise.resolve(null);
-    return db.collection(COLECAO).doc(DOC).get({ source: "server" })
-      .then((doc) => (doc.exists ? (doc.data() || {}).dados : null))
-      .catch(() => db.collection(COLECAO).doc(DOC).get()
-        .then((doc) => (doc.exists ? (doc.data() || {}).dados : null)))
+    if (!ref) return Promise.resolve(null);
+    return ref.get({ source: "server" })
+      .then((doc) => {
+        if (!doc.exists) return null;
+        const d = doc.data() || {};
+        return d[CAMPO] || d.dados || null;
+      })
       .catch(() => null);
   }
 
-  /* ---------- salvar (com atraso, juntando com a nuvem) ---------- */
+  /* ---------- salvar ---------- */
   function agendarSalvar(estado) {
-    if (!db) return;
+    if (!ref) return;
     clearTimeout(timer);
     status("enviando…", "salvando");
     timer = setTimeout(() => {
-      db.collection(COLECAO).doc(DOC).get()
+      ref.get()
         .then((doc) => {
-          const nuvem = doc.exists ? (doc.data() || {}).dados : null;
+          const d = doc.exists ? (doc.data() || {}) : {};
+          const nuvem = d[CAMPO] || d.dados || null;
           return enviar(nuvem ? juntar(estado, nuvem) : estado);
         })
         .catch(() => enviar(estado));
@@ -140,14 +164,14 @@
   }
 
   function enviar(estado) {
-    if (!db) return;
+    if (!ref) return;
     const agora = Date.now();
     const copia = JSON.parse(JSON.stringify(estado));
     copia.atualizadoEm = agora;
-    return db.collection(COLECAO).doc(DOC).set({
-      dados: copia,
-      atualizadoEm: agora
-    }, { merge: true })
+    const corpo = {};
+    corpo[CAMPO] = copia;
+    corpo[CAMPO + "Em"] = agora;
+    return ref.set(corpo, { merge: true })
       .then(() => status("salvo na nuvem", "ok"))
       .catch((e) => {
         console.warn("Falha ao salvar na nuvem:", e);
@@ -162,7 +186,7 @@
     juntar,
     impressao,
     configurada: () => configurada,
-    ligada: () => !!db,
+    ligada: () => !!ref,
     aoMudarStatus: (fn) => { avisarTela = fn; }
   };
 })();
