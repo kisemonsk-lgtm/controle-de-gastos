@@ -117,20 +117,22 @@
 
   function cancelarAnimacoes() {
     while (animacoes.length) {
-      try { cancelAnimationFrame(animacoes.pop()); } catch (e) {}
+      const id = animacoes.pop();
+      try { clearTimeout(id); cancelAnimationFrame(id); } catch (e) {}
     }
   }
 
   function animar(duracao, passo) {
     if (SEM_MOVIMENTO) { passo(1); return; }
-    const inicio = performance.now();
-    const quadro = (agora) => {
-      const t = Math.min(1, (agora - inicio) / duracao);
+    const inicio = Date.now();
+    const passoMs = 1000 / 60;
+    const tique = () => {
+      const t = Math.min(1, (Date.now() - inicio) / duracao);
       const suave = 1 - Math.pow(1 - t, 3);          // easeOutCubic
       passo(suave);
-      if (t < 1) animacoes.push(requestAnimationFrame(quadro));
+      if (t < 1) animacoes.push(setTimeout(tique, passoMs));
     };
-    animacoes.push(requestAnimationFrame(quadro));
+    tique();
   }
 
   /* ---------------- cálculos ---------------- */
@@ -232,13 +234,12 @@
     });
   }
 
-  const ultimoNumero = new WeakMap();
   function contarValor(el, valor) {
     if (!el) return;
-    const antes = ultimoNumero.get(el) || 0;
-    ultimoNumero.set(el, valor);
-    if (SEM_MOVIMENTO || antes === valor) { el.textContent = reais(valor); return; }
-    animar(650, (k) => { el.textContent = reais(antes + (valor - antes) * k); });
+    const de = Number(el.dataset.numero) || 0;
+    el.dataset.numero = String(valor);
+    if (SEM_MOVIMENTO || de === valor) { el.textContent = reais(valor); return; }
+    animar(650, (k) => { el.textContent = reais(de + (valor - de) * k); });
   }
 
   /* ---------------- tela: indicadores ---------------- */
@@ -257,12 +258,13 @@
     const diasContados = ehAtual ? Math.max(1, hoje.getDate()) : diasNoMes;
 
     contarValor($("#kpiTotal"), total);
+    $("#kpiTotal").textContent = reais(total);
 
     $("#kpiTotalPe").textContent = lista.length + (lista.length === 1 ? " lançamento" : " lançamentos") +
       (renda ? " · " + pct.format((total / renda) * 100) + "% da renda" : "");
 
-    if (renda) contarValor($("#kpiRenda"), renda); else $("#kpiRenda").textContent = "—";
-    if (renda) contarValor($("#kpiSobra"), sobra); else $("#kpiSobra").textContent = "—";
+    $("#kpiRenda").textContent = renda ? reais(renda) : "—";
+    $("#kpiSobra").textContent = renda ? reais(sobra) : "—";
     $("#kpiSobra").className = "kpi-val " + (renda ? (sobra >= 0 ? "val-bom" : "val-ruim") : "");
     $("#kpiSobraPe").textContent = renda
       ? (sobra >= 0 ? "sobrou " + pct.format((sobra / renda) * 100) + "% da renda"
@@ -360,20 +362,12 @@
       caminhos.forEach((f) => f.path.setAttribute("d", fatia(110, 110, 96, f.ang, f.ang + 0.0001)));
       caminhos.forEach((f, i) => {
         const espera = i * 70;
-        const dur = 520;
-        const t0 = performance.now() + espera;
-        const quadro = (agora) => {
-          const t = Math.min(1, Math.max(0, (agora - t0) / dur));
-          const suave = 1 - Math.pow(1 - t, 3);
-          const fimAtual = f.ang + f.arco * suave;
-          if (t > 0) {
-            f.path.setAttribute("d", f.arco >= Math.PI * 2 - 0.0001 && t >= 1
-              ? f.d : fatia(110, 110, 96, f.ang, fimAtual + 0.0001));
-          }
-          if (t < 1) animacoes.push(requestAnimationFrame(quadro));
-          else f.path.setAttribute("d", f.d);
-        };
-        animacoes.push(requestAnimationFrame(quadro));
+        animacoes.push(setTimeout(() => {
+          animar(520, (k) => {
+            const fimAtual = f.ang + f.arco * k;
+            f.path.setAttribute("d", k >= 1 ? f.d : fatia(110, 110, 96, f.ang, fimAtual + 0.0001));
+          });
+        }, espera));
       });
       // o número do centro sobe de 0 até o total
       const rot = $("#pizzaCentroVal");
