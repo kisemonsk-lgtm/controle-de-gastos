@@ -240,6 +240,7 @@
     el.dataset.numero = String(valor);
     if (SEM_MOVIMENTO || de === valor) { el.textContent = reais(valor); return; }
     animar(650, (k) => { el.textContent = reais(de + (valor - de) * k); });
+    setTimeout(() => { el.textContent = reais(valor); }, 700);
   }
 
   /* ---------------- tela: indicadores ---------------- */
@@ -706,6 +707,7 @@
     }
     salvar();
     fecharModal();
+    aviso("Gasto salvo", "ok");
   }
 
   /* ---------------- modal de renda ---------------- */
