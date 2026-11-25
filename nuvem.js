@@ -21,10 +21,14 @@
   const COLECAO = window.FIRESTORE_COLECAO || "gastos-casa";
   const DOC = window.FIRESTORE_DOC || "principal";
   const CAMPO = window.FIRESTORE_CAMPO || "gastos";
+  const PONTO_COLECAO = "ponto-cas";
+  const PONTO_DOC = "principal";
+  const CHAVE_REST = String(cfg.apiKey || "");
   const configurada = !!(cfg && cfg.apiKey && cfg.projectId && String(cfg.apiKey).indexOf("COLE") < 0);
 
   let db = null;
   let ref = null;          // referência que está funcionando
+  let modoREST = false;    // true quando só o caminho REST responde
   let timer = null;
   let avisarTela = () => {};
 
@@ -114,10 +118,18 @@
           usar(noPonto, (d) => (d && d[CAMPO]) || null);
           return doc.exists ? ((doc.data() || {})[CAMPO] || null) : null;
         })
-        .catch((err) => {
-          console.warn("Sem permissão na nuvem:", err);
-          status("nuvem sem permissão", "erro");
-          return null;
+        .catch(() => {
+          // 3) se as regras do SDK barram, tenta o caminho REST do Firestore
+          return baixarREST().then((dados) => {
+            if (dados) {
+              modoREST = true;
+              status("nuvem ligada", "ok");
+              aoReceber(dados);
+            } else {
+              status("nuvem bloqueada (permissão)", "erro");
+            }
+            return dados;
+          });
         }));
 
     function usar(referencia, leitor) {
@@ -130,13 +142,15 @@
         try { aoReceber(dados); } catch (e) { console.warn(e); }
       }, (err) => {
         console.warn("Falha ao ler da nuvem:", err);
-        status("nuvem sem conexão", "erro");
+        const semPermissao = err && (err.code === "permission-denied" || /permission/i.test(String(err.message)));
+        status(semPermissao ? "nuvem bloqueada (permissão)" : "nuvem sem conexão", "erro");
       });
     }
   }
 
   /* ---------- baixar ---------- */
   function baixar() {
+    if (modoREST) return baixarREST();
     if (!ref) return Promise.resolve(null);
     return ref.get({ source: "server" })
       .then((doc) => {
@@ -147,12 +161,79 @@
       .catch(() => null);
   }
 
+  /* ---------- REST (sem SDK, o mesmo caminho que o Google libera) ---------- */
+  const REST_BASE = "https://firestore.googleapis.com/v1/projects/" + cfg.projectId +
+    "/databases/(default)/documents/" + PONTO_COLECAO + "/" + PONTO_DOC;
+
+  function valorREST(v) {
+    if (v == null) return { nullValue: null };
+    if (typeof v === "number") return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+    if (typeof v === "boolean") return { booleanValue: v };
+    if (Array.isArray(v)) return { arrayValue: { values: v.map(valorREST) } };
+    if (typeof v === "object") {
+      const fields = {};
+      Object.keys(v).forEach((k) => { fields[k] = valorREST(v[k]); });
+      return { mapValue: { fields } };
+    }
+    return { stringValue: String(v) };
+  }
+
+  function lerREST(v) {
+    if (!v) return null;
+    if ("mapValue" in v) {
+      const out = {};
+      const f = v.mapValue.fields || {};
+      Object.keys(f).forEach((k) => { out[k] = lerREST(f[k]); });
+      return out;
+    }
+    if ("arrayValue" in v) return (v.arrayValue.values || []).map(lerREST);
+    if ("integerValue" in v) return Number(v.integerValue);
+    if ("doubleValue" in v) return Number(v.doubleValue);
+    if ("booleanValue" in v) return !!v.booleanValue;
+    if ("stringValue" in v) return v.stringValue;
+    if ("nullValue" in v) return null;
+    return null;
+  }
+
+  function baixarREST() {
+    if (!CHAVE_REST) return Promise.resolve(null);
+    return fetch(REST_BASE + "?key=" + encodeURIComponent(CHAVE_REST))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const campo = d && d.fields && d.fields[CAMPO];
+        const dados = campo ? lerREST(campo) : null;
+        return dados && Array.isArray(dados.lancamentos) ? dados : null;
+      })
+      .catch(() => null);
+  }
+
+  function enviarREST(estado) {
+    if (!CHAVE_REST) return Promise.resolve(false);
+    const copia = JSON.parse(JSON.stringify(estado));
+    copia.atualizadoEm = Date.now();
+    const corpo = { fields: {} };
+    corpo.fields[CAMPO] = valorREST(copia);
+    corpo.fields[CAMPO + "Em"] = valorREST(copia.atualizadoEm);
+    const url = REST_BASE + "?key=" + encodeURIComponent(CHAVE_REST) +
+      "&updateMask.fieldPaths=" + CAMPO + "&updateMask.fieldPaths=" + CAMPO + "Em";
+    return fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo)
+    }).then((r) => r.ok).catch(() => false);
+  }
+
   /* ---------- salvar ---------- */
   function agendarSalvar(estado) {
-    if (!ref) return;
+    if (!ref && !modoREST) return;
     clearTimeout(timer);
     status("enviando…", "salvando");
     timer = setTimeout(() => {
+      if (modoREST || !ref) {
+        baixarREST().then((nuvem) => enviarREST(nuvem ? juntar(estado, nuvem) : estado))
+          .then((ok) => status(ok ? "salvo na nuvem" : "não salvou na nuvem", ok ? "ok" : "erro"));
+        return;
+      }
       ref.get()
         .then((doc) => {
           const d = doc.exists ? (doc.data() || {}) : {};
@@ -174,8 +255,10 @@
     return ref.set(corpo, { merge: true })
       .then(() => status("salvo na nuvem", "ok"))
       .catch((e) => {
-        console.warn("Falha ao salvar na nuvem:", e);
-        status("não salvou na nuvem", "erro");
+        console.warn("SDK não salvou, tentando REST:", e);
+        return enviarREST(estado).then((ok) => {
+          status(ok ? "salvo na nuvem" : "não salvou na nuvem", ok ? "ok" : "erro");
+        });
       });
   }
 
