@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-tema="escuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1220">
+<meta name="color-scheme" content="dark light">
+<title>Gastos — Controle Mensal</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icone.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./estilo.css">
+</head>
+<body>
+
+<div class="brilho brilho-a"></div>
+<div class="brilho brilho-b"></div>
+
+<header class="topo">
+  <div class="marca">
+    <div class="logo">G</div>
+    <div>
+      <h1>Gastos</h1>
+      <p id="subtitulo">Controle mensal</p>
+    </div>
+  </div>
+
+  <div class="topo-dir">
+    <div class="nuvem" id="nuvem" title="Estado da nuvem Firebase">
+      <span class="bolinha"></span>
+      <span id="nuvemTexto">conectando…</span>
+    </div>
+    <button class="btn-icone" id="btnTema" title="Claro / escuro" aria-label="Alternar tema">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ============ MÊS ============ -->
+  <section class="barra-mes">
+    <button class="btn-seta" id="mesAnterior" aria-label="Mês anterior">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+    <div class="mes-centro">
+      <input type="month" id="mes" aria-label="Mês de referência">
+      <div class="mes-chips" id="chipsMeses"></div>
+    </div>
+
+    <button class="btn-seta" id="mesProximo" aria-label="Próximo mês">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+    <div class="barra-acoes">
+      <button class="btn btn-fantasma" id="btnExportar">Exportar</button>
+      <button class="btn btn-primario" id="btnNovo">+ Novo gasto</button>
+    </div>
+  </section>
+
+  <!-- ============ INDICADORES ============ -->
+  <section class="kpis">
+    <article class="kpi kpi-destaque">
+      <span class="kpi-rot">Total do mês</span>
+      <strong class="kpi-val" id="kpiTotal">R$ 0,00</strong>
+      <span class="kpi-pe" id="kpiTotalPe">&nbsp;</span>
+    </article>
+    <article class="kpi">
+      <span class="kpi-rot">Renda do mês</span>
+      <strong class="kpi-val" id="kpiRenda">R$ 0,00</strong>
+      <button class="kpi-link" id="btnRenda">editar renda</button>
+    </article>
+    <article class="kpi">
+      <span class="kpi-rot">Sobra</span>
+      <strong class="kpi-val" id="kpiSobra">R$ 0,00</strong>
+      <span class="kpi-pe" id="kpiSobraPe">&nbsp;</span>
+    </article>
+    <article class="kpi">
+      <span class="kpi-rot">Obrigatório</span>
+      <strong class="kpi-val" id="kpiObrig">R$ 0,00</strong>
+      <span class="kpi-pe" id="kpiObrigPe">&nbsp;</span>
+    </article>
+    <article class="kpi">
+      <span class="kpi-rot">Não obrigatório</span>
+      <strong class="kpi-val" id="kpiNao">R$ 0,00</strong>
+      <span class="kpi-pe" id="kpiNaoPe">&nbsp;</span>
+    </article>
+    <article class="kpi">
+      <span class="kpi-rot">Média por dia</span>
+      <strong class="kpi-val" id="kpiMedia">R$ 0,00</strong>
+      <span class="kpi-pe" id="kpiMediaPe">&nbsp;</span>
+    </article>
+  </section>
+
+  <!-- ============ GRÁFICOS ============ -->
+  <section class="grade-graficos">
+    <article class="card card-pizza">
+      <header class="card-topo">
+        <h2>Gastos por categoria</h2>
+        <span class="card-sub" id="subPizza">pizza do mês</span>
+      </header>
+      <div class="pizza-area">
+        <div class="pizza-caixa">
+          <svg id="graficoPizza" viewBox="0 0 220 220" role="img" aria-label="Gráfico de pizza por categoria"></svg>
+          <div class="pizza-centro">
+            <span id="pizzaCentroRot">Total</span>
+            <strong id="pizzaCentroVal">R$ 0</strong>
+          </div>
+        </div>
+        <ul class="legenda" id="legendaPizza"></ul>
+      </div>
+    </article>
+
+    <article class="card card-barra">
+      <header class="card-topo">
+        <h2>Evolução mensal</h2>
+        <span class="card-sub">últimos 12 meses</span>
+      </header>
+      <div class="barras" id="graficoBarras"></div>
+      <div class="barras-legenda">
+        <span><i class="cor-a"></i> Obrigatório</span>
+        <span><i class="cor-b"></i> Não obrigatório</span>
+      </div>
+    </article>
+
+    <article class="card card-rosca">
+      <header class="card-topo">
+        <h2>Obrigatório × Não obrigatório</h2>
+        <span class="card-sub" id="subRosca">participação no mês</span>
+      </header>
+      <div class="rosca-area">
+        <div class="rosca-caixa">
+          <svg id="graficoRosca" viewBox="0 0 200 200" role="img" aria-label="Gráfico de rosca"></svg>
+          <div class="rosca-centro">
+            <strong id="roscaPct">0%</strong>
+            <span>supérfluo</span>
+          </div>
+        </div>
+        <div class="rosca-legenda" id="legendaRosca"></div>
+      </div>
+    </article>
+  </section>
+
+  <!-- ============ LANÇAMENTOS ============ -->
+  <section class="card card-tabela">
+    <header class="card-topo">
+      <h2>Lançamentos do mês</h2>
+      <div class="tabela-acoes">
+        <input type="search" id="busca" placeholder="Buscar descrição ou categoria…" aria-label="Buscar">
+        <select id="filtroGrupo" aria-label="Filtrar por grupo">
+          <option value="">Todos os grupos</option>
+        </select>
+      </div>
+    </header>
+    <div class="tabela-rolagem">
+      <table id="tabela">
+        <thead>
+          <tr>
+            <th class="col-data">Data</th>
+            <th>Descrição</th>
+            <th>Categoria</th>
+            <th class="col-grupo">Grupo</th>
+            <th class="num">Valor</th>
+            <th class="col-pag">Pagamento</th>
+            <th class="col-acao"></th>
+          </tr>
+        </thead>
+        <tbody id="corpoTabela"></tbody>
+      </table>
+      <div class="vazio" id="tabelaVazia" hidden>
+        <p>Nenhum gasto neste mês ainda.</p>
+        <button class="btn btn-primario" id="btnNovoVazio">Lançar o primeiro gasto</button>
+      </div>
+      <div class="vazio" id="inicioRapido">
+        <p><b>Comece por aqui:</b> escolha o mês lá em cima, informe a renda e vá lançando os gastos.<br>
+          Tudo é salvo sozinho — no navegador e na nuvem Firebase.</p>
+        <button class="btn btn-primario" id="btnPrimeiro">Lançar o primeiro gasto</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="rodape">
+    <span>Salvo automaticamente no seu navegador e na nuvem Firebase.</span>
+    <span id="rodapeSelo">—</span>
+  </footer>
+</main>
+
+<!-- ============ MODAL DE GASTO ============ -->
+<div class="modal-fundo" id="modalFundo" hidden>
+  <form class="modal" id="formGasto" autocomplete="off">
+    <header class="modal-topo">
+      <h3 id="modalTitulo">Novo gasto</h3>
+      <button type="button" class="btn-icone" id="btnFechar" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+
+    <div class="modal-corpo">
+      <label class="campo">
+        <span>Descrição</span>
+        <input type="text" id="campoDescricao" placeholder="Ex.: Mercado do mês" required maxlength="80">
+      </label>
+
+      <div class="linha-2">
+        <label class="campo">
+          <span>Valor (R$)</span>
+          <input type="text" id="campoValor" inputmode="decimal" placeholder="0,00" required>
+        </label>
+        <label class="campo">
+          <span>Data</span>
+          <input type="date" id="campoData" required>
+        </label>
+      </div>
+
+      <label class="campo">
+        <span>Categoria</span>
+        <select id="campoCategoria" required></select>
+      </label>
+
+      <div class="linha-2">
+        <label class="campo">
+          <span>Forma de pagamento</span>
+          <select id="campoPagamento">
+            <option>Pix</option>
+            <option>Dinheiro</option>
+            <option>Débito</option>
+            <option>Crédito</option>
+            <option>Boleto</option>
+            <option>Transferência</option>
+          </select>
+        </label>
+        <label class="campo">
+          <span>Obrigatório?</span>
+          <select id="campoObrig">
+            <option value="1">Obrigatório</option>
+            <option value="0">Não obrigatório</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="campo">
+        <span>Observações <em>(opcional)</em></span>
+        <input type="text" id="campoObs" placeholder="Alguma anotação" maxlength="120">
+      </label>
+
+      <p class="aviso" id="avisoForm" hidden></p>
+    </div>
+
+    <footer class="modal-pe">
+      <button type="button" class="btn btn-perigo" id="btnExcluir" hidden>Excluir</button>
+      <div class="espaco"></div>
+      <button type="button" class="btn btn-fantasma" id="btnCancelar">Cancelar</button>
+      <button type="submit" class="btn btn-primario">Salvar</button>
+    </footer>
+  </form>
+</div>
+
+<!-- ============ MODAL DE RENDA ============ -->
+<div class="modal-fundo" id="modalRendaFundo" hidden>
+  <form class="modal modal-pequeno" id="formRenda">
+    <header class="modal-topo">
+      <h3>Renda do mês</h3>
+      <button type="button" class="btn-icone" id="btnFecharRenda" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+    <div class="modal-corpo">
+      <label class="campo">
+        <span>Quanto você recebe no mês <em id="rendaMesNome"></em></span>
+        <input type="text" id="campoRenda" inputmode="decimal" placeholder="0,00">
+      </label>
+      <p class="dica">Com a renda preenchida, o sistema calcula a sobra e a porcentagem da renda comprometida.</p>
+    </div>
+    <footer class="modal-pe">
+      <div class="espaco"></div>
+      <button type="button" class="btn btn-fantasma" id="btnCancelarRenda">Cancelar</button>
+      <button type="submit" class="btn btn-primario">Salvar</button>
+    </footer>
+  </form>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="firebase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="nuvem.js"></script>
+<script src="categorias.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
